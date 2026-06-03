@@ -58,9 +58,9 @@ class CompatibilityService implements SingletonInterface
     public function isFirstPartOfStr($str, $partStr): bool
     {
         if (PHP_MAJOR_VERSION >= 8) {
-            return str_starts_with($str, $partStr);
+            return str_starts_with((string) $str, (string) $partStr);
         } else {
-            return GeneralUtility::isFirstPartOfStr($str, $partStr);
+            return \str_starts_with((string) $str, (string) $partStr);
         }
     }
 }

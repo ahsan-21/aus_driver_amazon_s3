@@ -76,11 +76,6 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
     const FILE_CONTENT_HASH_FORCE = 2;
 
     /**
-     * @var S3Client
-     */
-    protected $s3Client = null;
-
-    /**
      * The base URL that points to this driver's storage. As long is this is not set, it is assumed that this folder
      * is not publicly available
      *
@@ -186,7 +181,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
      * @param array $configuration
      * @param S3Client $s3Client
      */
-    public function __construct(array $configuration = [], $s3Client = null, EventDispatcherInterface $eventDispatcher = null)
+    public function __construct(array $configuration = [], protected $s3Client = null, ?EventDispatcherInterface $eventDispatcher = null)
     {
         parent::__construct($configuration);
         $this->eventDispatcher = $eventDispatcher ?? GeneralUtility::makeInstance(EventDispatcherInterface::class);
@@ -201,7 +196,6 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
         );
 
         $this->streamWrapperProtocol = 's3-' . substr(md5(uniqid()), 0, 7);
-        $this->s3Client = $s3Client;
         $this->metaInfoCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('ausdriveramazons3_metainfocache');
         $this->requestCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('ausdriveramazons3_requestcache');
     }
@@ -262,7 +256,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
     public function getPublicUrl(string $identifier): ?string
     {
         $uriParts = GeneralUtility::trimExplode('/', ltrim($identifier, '/'), true);
-        $uriParts = array_map('rawurlencode', $uriParts);
+        $uriParts = array_map(rawurlencode(...), $uriParts);
         return $this->baseUrl . '/' . $this->addBaseFolder(implode('/', $uriParts));
     }
 
@@ -365,7 +359,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
      */
     public function fileExists(string $identifier): bool
     {
-        if (substr($identifier, -1) === '/' || $identifier === '') {
+        if (str_ends_with($identifier, '/') || $identifier === '') {
             return false;
         }
         return $this->objectExists($identifier);
@@ -382,7 +376,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
         if ($identifier === self::ROOT_FOLDER_IDENTIFIER) {
             return true;
         }
-        if (substr($identifier, -1) !== '/') {
+        if (!str_ends_with($identifier, '/')) {
             $identifier .= '/';
         }
         return $this->prefixExists($identifier);
@@ -591,7 +585,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
                 'Key' => $this->addBaseFolder($fileIdentifier),
                 'SaveAs' => $temporaryPath,
             ]);
-        } catch (\Exception $exception) {
+        } catch (\Exception) {
             // Just prevent the exception content to be written in the temporary file. See next condition below
         }
 
@@ -645,7 +639,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
             $identifier = $parentFolderIdentifier . $newFolderName . '/';
         } else {
             $parts = GeneralUtility::trimExplode('/', $newFolderName);
-            $parts = array_map([$this, 'sanitizeFileName'], $parts);
+            $parts = array_map($this->sanitizeFileName(...), $parts);
             $newFolderName = implode('/', $parts);
             $identifier = $parentFolderIdentifier . $newFolderName . '/';
         }
@@ -725,7 +719,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
             if ($this->isDir($subObjectIdentifier)) {
                 $this->renameSubFolder($this->getFolder($subObjectIdentifier), $newIdentifier);
             } else {
-                $newSubObjectIdentifier = $newIdentifier . basename($subObjectIdentifier);
+                $newSubObjectIdentifier = $newIdentifier . basename((string) $subObjectIdentifier);
                 $this->renameObject($subObjectIdentifier, $newSubObjectIdentifier);
             }
         }
@@ -755,7 +749,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
 
         foreach ($subObjects as $subObject) {
             $newIdentifier = $targetFolderIdentifier . $newFolderName . '/' . substr(
-                $subObject['Key'],
+                (string) $subObject['Key'],
                 strlen($sourceFolderIdentifier)
             );
             $this->renameObject($subObject['Key'], $newIdentifier);
@@ -782,7 +776,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
 
         foreach ($subObjects as $subObject) {
             $newIdentifier = $targetFolderIdentifier . $newFolderName . '/' . substr(
-                $subObject['Key'],
+                (string) $subObject['Key'],
                 strlen($sourceFolderIdentifier)
             );
             $this->copyObject($subObject['Key'], $newIdentifier);
@@ -916,23 +910,23 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
         if (isset($response['Contents'])) {
             foreach ($response['Contents'] as $fileCandidate) {
                 // skip directory entries
-                if (substr($fileCandidate['Key'], -1) === '/') {
+                if (str_ends_with((string) $fileCandidate['Key'], '/')) {
                     continue;
                 }
 
                 // skip subdirectory entries
-                if (!$recursive && substr_count($fileCandidate['Key'], '/') > substr_count($folderIdentifier, '/')) {
+                if (!$recursive && substr_count((string) $fileCandidate['Key'], '/') > substr_count($folderIdentifier, '/')) {
                     continue;
                 }
 
-                $fileName = basename($fileCandidate['Key']);
+                $fileName = basename((string) $fileCandidate['Key']);
                 // check filter
                 if (
                     !$this->applyFilterMethodsToDirectoryItem(
                         $filenameFilterCallbacks,
                         $fileName,
                         $fileCandidate['Key'],
-                        dirname($fileCandidate['Key'])
+                        dirname((string) $fileCandidate['Key'])
                     )
                 ) {
                     continue;
@@ -993,7 +987,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
                     $folderName = basename(rtrim($key, '/'));
 
                     // filter only folders
-                    if (substr($key, -1) !== '/') {
+                    if (!str_ends_with($key, '/')) {
                         continue;
                     }
                     if (!$this->applyFilterMethodsToDirectoryItem($folderNameFilterCallbacks, $folderName, $key, dirname($folderName))) {
@@ -1140,7 +1134,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
         $baseUrl = $protocol;
 
         if (isset($this->configuration['publicBaseUrl']) && $this->configuration['publicBaseUrl'] !== '') {
-            $baseUrl .= rtrim($this->configuration['publicBaseUrl'], '/');
+            $baseUrl .= rtrim((string) $this->configuration['publicBaseUrl'], '/');
         } else {
             $baseUrl .= ($this->configuration['bucket'] ?? '') . '.s3.amazonaws.com';
         }
@@ -1175,7 +1169,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
     {
         $baseFolder = $this->configuration['baseFolder'] ?? '';
         if ($baseFolder != '') {
-            $baseFolder = rtrim($baseFolder, '/') . '/';
+            $baseFolder = rtrim((string) $baseFolder, '/') . '/';
         }
         $this->baseFolder = $baseFolder;
         return $this;
@@ -1402,7 +1396,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
             // Ignore file not found errors
             if (!$exc->getPrevious() || $exc->getPrevious()->getCode() !== 404) {
                 /** @var \TYPO3\CMS\Core\Log\Logger $logger */
-                $logger = GeneralUtility::makeInstance(LogManager::class)->getLogger(__CLASS__);
+                $logger = GeneralUtility::makeInstance(LogManager::class)->getLogger(self::class);
                 $logger->log(LogLevel::WARNING, $exc->getMessage(), $exc->getTrace());
             }
             $this->metaInfoCache->remove($cacheIdentifier);
@@ -1583,10 +1577,10 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
      * @return string Output string with any characters not matching [.a-zA-Z0-9_-] is substituted by '_' and trailing dots removed
      * @throws Exception\InvalidFileNameException
      */
-    public function sanitizeFileName(string $fileName, string $charset = ''): string
+    public function sanitizeFileName(string $fileName): string
     {
         return GeneralUtility::makeInstance(FileNameService::class)
-            ->sanitizeFileName((string)$fileName, (string)$charset);
+            ->sanitizeFileName($fileName);
     }
 
     /**
@@ -1662,19 +1656,15 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
         if (!is_array($result['Contents'] ?? null)) {
             return [];
         }
-        return array_filter($result['Contents'], function ($object) use ($identifier, $recursive, $filter) {
-            return (
-                $object['Key'] !== $identifier &&
-                (
-                    $recursive ||
-                    substr_count(trim(str_replace($identifier, '', $object['Key']), '/'), '/') === 0
-                ) && (
-                    $filter === self::FILTER_ALL ||
-                    $filter === self::FILTER_FOLDERS && $this->isDir($object['Key']) ||
-                    $filter === self::FILTER_FILES && !$this->isDir($object['Key'])
-                )
-            );
-        });
+        return array_filter($result['Contents'], fn($object) => $object['Key'] !== $identifier &&
+        (
+            $recursive ||
+            substr_count(trim(str_replace($identifier, '', $object['Key']), '/'), '/') === 0
+        ) && (
+            $filter === self::FILTER_ALL ||
+            $filter === self::FILTER_FOLDERS && $this->isDir($object['Key']) ||
+            $filter === self::FILTER_FILES && !$this->isDir($object['Key'])
+        ));
     }
 
     /**
@@ -1758,7 +1748,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
                 $subFolder = $this->getFolder($subObjectIdentifier);
                 $this->renameSubFolder($subFolder, $newDirName . $folder->getName() . '/');
             } else {
-                $newSubObjectIdentifier = $newDirName . $folder->getName() . '/' . basename($subObjectIdentifier);
+                $newSubObjectIdentifier = $newDirName . $folder->getName() . '/' . basename((string) $subObjectIdentifier);
                 $this->renameObject($subObjectIdentifier, $newSubObjectIdentifier);
             }
         }
@@ -1789,20 +1779,20 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
     protected function sortObjectsForNestedFolderOperations(array &$objects): void
     {
         usort($objects, function ($object1, $object2) {
-            if (substr($object1['Key'], -1) === '/') {
-                if (substr($object2['Key'], -1) === '/') {
-                    $numSlashes1 = substr_count($object1['Key'], '/');
-                    $numSlashes2 = substr_count($object2['Key'], '/');
+            if (str_ends_with((string) $object1['Key'], '/')) {
+                if (str_ends_with((string) $object2['Key'], '/')) {
+                    $numSlashes1 = substr_count((string) $object1['Key'], '/');
+                    $numSlashes2 = substr_count((string) $object2['Key'], '/');
                     return $numSlashes1 < $numSlashes2 ? -1 : ($numSlashes1 === $numSlashes2 ? 0 : 1);
                 } else {
                     return -1;
                 }
             } else {
-                if (substr($object2['Key'], -1) === '/') {
+                if (str_ends_with((string) $object2['Key'], '/')) {
                     return 1;
                 } else {
-                    $numSlashes1 = substr_count($object1['Key'], '/');
-                    $numSlashes2 = substr_count($object2['Key'], '/');
+                    $numSlashes1 = substr_count((string) $object1['Key'], '/');
+                    $numSlashes2 = substr_count((string) $object2['Key'], '/');
                     return $numSlashes1 < $numSlashes2 ? -1 : ($numSlashes1 === $numSlashes2 ? 0 : 1);
                 }
             }
@@ -1852,7 +1842,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
     {
         if (!$this->processingFolder) {
             $confProcessingFolder = $this->getStorage()->getProcessingFolder()->getName();
-            $this->processingFolder = $confProcessingFolder ? $confProcessingFolder : $this->processingFolderDefault;
+            $this->processingFolder = $confProcessingFolder ?: $this->processingFolderDefault;
         }
         return $this->processingFolder;
     }
@@ -1865,7 +1855,7 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
      */
     protected function isDir($identifier): bool
     {
-        return substr($identifier, -1) === '/';
+        return str_ends_with($identifier, '/');
     }
 
     /**

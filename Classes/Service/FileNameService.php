@@ -53,7 +53,7 @@ class FileNameService implements SingletonInterface
         );
 
         // Strip trailing dots and return
-        $cleanFileName = rtrim($cleanFileName, '.');
+        $cleanFileName = rtrim((string) $cleanFileName, '.');
         if ($cleanFileName === '') {
             throw new InvalidFileNameException(
                 'File name ' . $fileName . ' is invalid.',
