@@ -13,6 +13,7 @@
 
 namespace AUS\AusDriverAmazonS3\S3Adapter;
 
+use Aws\Api\DateTimeResult;
 use AUS\AusDriverAmazonS3\Driver\AmazonS3Driver;
 use TYPO3\CMS\Core\Type\File\FileInfo;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
@@ -26,15 +27,9 @@ use TYPO3\CMS\Core\Utility\PathUtility;
  */
 class MetaInfoDownloadAdapter extends AbstractS3Adapter
 {
-    /**
-     * @param AmazonS3Driver $driver
-     * @param string $identifier
-     * @param array $response
-     * @return array
-     */
     public function getMetaInfoFromResponse(AmazonS3Driver $driver, string $identifier, array $response): array
     {
-        /** @var \Aws\Api\DateTimeResult $lastModified */
+        /** @var DateTimeResult $lastModified */
         $lastModified = $response['LastModified'];
         $lastModifiedUnixTimestamp = $lastModified->getTimestamp();
 
@@ -52,11 +47,13 @@ class MetaInfoDownloadAdapter extends AbstractS3Adapter
         if (!empty($response['ContentType'])) {
             $metaInfo['mimetype'] = $this->getOverwrittenMimeType($response['ContentType'], $metaInfo['extension'], basename($identifier));
         }
+
         if (!empty($response['ContentLength'])) {
             $metaInfo['size'] = (int)$response['ContentLength'];
         } elseif (!empty($response['size'])) {
             $metaInfo['size'] = (int)$response['size'];
         }
+
         return $metaInfo;
     }
 
@@ -78,7 +75,7 @@ class MetaInfoDownloadAdapter extends AbstractS3Adapter
             $mimeType = $fileExtensionToMimeTypeMapping[$lowercaseFileExtension];
         }
 
-        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][\TYPO3\CMS\Core\Type\File\FileInfo::class]['mimeTypeGuessers'] ?? [] as $mimeTypeGuesser) {
+        foreach ($GLOBALS['TYPO3_CONF_VARS']['SC_OPTIONS'][FileInfo::class]['mimeTypeGuessers'] ?? [] as $mimeTypeGuesser) {
             $hookParameters = [
                 'mimeType' => &$mimeType
             ];

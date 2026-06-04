@@ -12,6 +12,8 @@
  *
  ***/
 
+declare(strict_types=1);
+
 namespace AUS\AusDriverAmazonS3\Index;
 
 use AUS\AusDriverAmazonS3\Driver\AmazonS3Driver;
@@ -87,7 +89,6 @@ class Extractor implements ExtractorInterface
     /**
      * Checks if the given file can be processed by this Extractor
      *
-     * @param File $file
      * @return boolean
      */
     public function canProcess(File $file)
@@ -100,7 +101,6 @@ class Extractor implements ExtractorInterface
      *
      * Should return an array with database properties for sys_file_metadata to write
      *
-     * @param File $file
      * @param array $previousExtractedData optional, contains the array of already extracted data
      * @return array
      */
@@ -108,19 +108,13 @@ class Extractor implements ExtractorInterface
     {
         if (empty($previousExtractedData['width']) || empty($previousExtractedData['height'])) {
             $imageDimensions = $this->getImageDimensionsOfRemoteFile($file);
-            if ($imageDimensions !== null) {
-                $previousExtractedData['width'] = $imageDimensions[0];
-                $previousExtractedData['height'] = $imageDimensions[1];
-            }
+            $previousExtractedData['width'] = $imageDimensions[0];
+            $previousExtractedData['height'] = $imageDimensions[1];
         }
 
         return $previousExtractedData;
     }
 
-    /**
-     * @param FileInterface $file
-     * @return array
-     */
     public function getImageDimensionsOfRemoteFile(FileInterface $file): array
     {
         $fileNameAndPath = $file->getForLocalProcessing(false);

@@ -52,7 +52,7 @@ class MultipartUploaderAdapter extends AbstractS3Adapter
         $uploader = new MultipartUploader($this->s3Client, $localFilePath, [
             'bucket' => $bucket,
             'key' => $targetFilePath,
-            'before_initiate' => static function (Command $command) use ($contentType, $cacheControl, $metadata) {
+            'before_initiate' => static function (Command $command) use ($contentType, $cacheControl, $metadata): void {
                 $command['ContentType'] = $contentType;
                 $command['CacheControl'] = $cacheControl;
                 $command['Metadata'] = $metadata;
@@ -75,11 +75,11 @@ class MultipartUploaderAdapter extends AbstractS3Adapter
         // Abort a multipart upload if failed
         try {
             $uploader->upload();
-        } catch (MultipartUploadException $e) {
+        } catch (MultipartUploadException $multipartUploadException) {
             // State contains the "Bucket", "Key", and "UploadId"
-            $params = $e->getState()->getId();
+            $params = $multipartUploadException->getState()->getId();
             $this->s3Client->abortMultipartUpload($params);
-            throw $e;
+            throw $multipartUploadException;
         }
     }
 
@@ -91,9 +91,7 @@ class MultipartUploaderAdapter extends AbstractS3Adapter
 
         $mimeDetector = GeneralUtility::makeInstance(MimeTypeDetector::class);
         if (
-            $contentType === 'text/plain'
-            || $contentType === 'application/octet-stream'
-            || $contentType === 'image/svg'
+            in_array($contentType, ['text/plain', 'application/octet-stream', 'image/svg'], true)
         ) {
             // file's magic database often fails to detect plain text files
             // we manually fix the mime type here.
@@ -101,6 +99,7 @@ class MultipartUploaderAdapter extends AbstractS3Adapter
             $mimeTypes = $mimeDetector->getMimeTypesForFileExtension($ext) ;
             return $mimeTypes ? $mimeTypes[0] : $contentType;
         }
+
         return $contentType;
     }
 }

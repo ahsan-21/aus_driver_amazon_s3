@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PLUS\GrumPHPConfig\RectorSettings;
 use Rector\Config\RectorConfig;
 use Rector\Caching\ValueObject\Storage\FileCacheStorage;
+use Ssch\TYPO3Rector\Set\Typo3SetList;
 
 return static function (RectorConfig $rectorConfig): void {
     $rectorConfig->parallel();
@@ -21,7 +22,8 @@ return static function (RectorConfig $rectorConfig): void {
     $rectorConfig->sets(
         [
             ...RectorSettings::sets(true),
-            ...RectorSettings::setsTypo3(false),
+            ...RectorSettings::setsTypo3(true),
+            Typo3SetList::TYPO3_14,  // Explicit v14 rules
         ]
     );
 

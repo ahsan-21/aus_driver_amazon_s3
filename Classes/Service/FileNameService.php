@@ -31,7 +31,7 @@ class FileNameService implements SingletonInterface
     /**
      * @var CharsetConverter
      */
-    protected $charsetConversion = null;
+    protected $charsetConversion;
 
     /**
      * Returns a string where any character not matching [.a-zA-Z0-9_-] is
@@ -60,6 +60,7 @@ class FileNameService implements SingletonInterface
                 1320288991
             );
         }
+
         return $cleanFileName;
     }
 
@@ -68,6 +69,7 @@ class FileNameService implements SingletonInterface
         if (!isset($this->charsetConversion)) {
             $this->charsetConversion = GeneralUtility::makeInstance(CharsetConverter::class);
         }
+
         return $this->charsetConversion;
     }
 }

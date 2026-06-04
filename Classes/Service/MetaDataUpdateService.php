@@ -31,6 +31,10 @@ use TYPO3\CMS\Core\Utility\GeneralUtility;
  */
 class MetaDataUpdateService implements SingletonInterface
 {
+    public function __construct(private readonly ResourceFactory $resourceFactory)
+    {
+    }
+
     /**
      * @throws InvalidUidException
      */
@@ -66,7 +70,7 @@ class MetaDataUpdateService implements SingletonInterface
 
     protected function getStorage(int $uid): ResourceStorage
     {
-        $resourceFactory = GeneralUtility::makeInstance(ResourceFactory::class);
+        $resourceFactory = $this->resourceFactory;
         assert($resourceFactory instanceof ResourceFactory);
         return $resourceFactory->getStorageObject($uid);
     }
