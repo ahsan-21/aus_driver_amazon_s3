@@ -1039,7 +1039,9 @@ class AmazonS3Driver extends AbstractHierarchicalFilesystemDriver implements Str
     {
         $protocol = $this->configuration['protocol'] ?? '';
         if ($protocol == 'auto') {
-            $protocol = GeneralUtility::getIndpEnv('TYPO3_SSL') ? 'https://' : 'http://';
+            $request = $GLOBALS['TYPO3_REQUEST'] ?? null;
+            $isHttps = $request?->getAttribute('normalizedParams')?->isHttps() ?? false;
+            $protocol = $isHttps ? 'https://' : 'http://';
         }
 
         $baseUrl = $protocol;
